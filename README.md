@@ -1,9 +1,9 @@
 # SISTEM PERTAHANAN JARINGAN - HARDENING SERVER KELOMPOK 8
 Disini, kami akan membuat Web Server lalu melakukan penyerangan Brute-Force menggunakan tools hydra serta melakukan Hardening. Anggota Kelompok kami terdiri dari:
 
-Raka Tirta Wahyudi - 23.83.0991.
-Zhewa al varihy mandeva - 23.83.1012.
-Angga ahdi prasetya - 23.83.1033.
+Raka Tirta Wahyudi - 23.83.0991.<br>
+Zhewa al varihy mandeva - 23.83.1012.<br>
+Angga ahdi prasetya - 23.83.1033.<br>
 
 ## daftar isi
 1. Membuat Web Server
@@ -113,39 +113,117 @@ Angga ahdi prasetya - 23.83.1033.
    sudo systemctl restart apache2
    ```
    ![image](https://github.com/user-attachments/assets/a417be69-1ce2-412f-a11d-6e8298e09546)
-## 3. Nonaktifkan Login Root
-1. Masuk ke konfigurasi SSH
+## 3. menyembunyikan direktori
+1. Masuk ke konfigurasi apache
    ```
-   sudo nano /etc/ssh/sshd_config
+   sudo nano /etc/apache2/apache2.conf
    ```
-   Lalu ubah bagian PermitRootLogin menjadi PermitRootLogin no, Lalu restart SSH.
-   ![image](https://github.com/user-attachments/assets/bb64a1b6-eb1d-4376-b1f2-0d88efd541a0)
-## 4. Rate-Limiting
-1. Install tools Fail2Ban
+   Lalu tambahkan
    ```
-   sudo apt install fail2ban -y
+   <Directory /var/www/html>
+      Options -Indexes
+   </Directory>
    ```
-2. Masuk ke file konfigurasi Fail2Ban
+2. restart apache
    ```
-   nano /etc/fail2ban/jail.local
+   systemctl restart apache2
    ```
-   lalu masukkan tetks berikut
+3. Cek direktori <ip kamu>/private pada browser. Semisal penyerang berhasil masuk, penyerang tidak bisa melihat isi direktori server.
+   ![image](https://github.com/user-attachments/assets/6429297f-a111-461b-ab5a-f8a92eb82a09)
+
+   
+## 4. batasi request HTTP
+1. edit konfigurasi
    ```
-   [sshd]
+   sudo nano /etc/apache2/apache2.conf
+   ```
+2. Tambahkan baris ini untuk me-limit body request menjadi 5 mb.
+   ```
+   LimitRequestBody 5242880
+   ```
+## 4. Memblokir IP Address yang mencoba untuk login berulang
+   Batasi Percobaan Login dengan Fail2Ban
+   Install dan konfigurasi Fail2Ban untuk memblokir IP yang gagal login berkali-kali:
+   ```
+   sudo apt install fail2ban
+   ```
+   Konfigurasi SSH di /etc/fail2ban/jail.local:
+   ```
+   [apache-auth]
    enabled = true
-   port = 22
+   port = 80,443
+   filter = apache-auth
+   logpath = /var/log/apache2/error.log
    maxretry = 3
    bantime = 600
-   findtime = 600
    ```
-## 4. Brute-force after Hardening
-1. Lakukan serangan brute-force menggunakan hydra, jika server kamu berhasil untuk di Hardening, maka Hydra tidak akan bisa menyerang server kamu.
+   Restart Fail2Ban:
    ```
-   hydra -l <username kamu> -P passlist.txt ssh://192.168.100.72
+   sudo systemctl restart fail2ban
    ```
-   ![WhatsApp Image 2024-12-19 at 04 01 42_89da6ab1](https://github.com/user-attachments/assets/836de87a-07e3-46f7-9c98-c50e2366441c)
 
-## 5. jika pasword masih bisa diserang
+## 5. Membatasi Request emggunakan rate limit
+   1. aktifkan module
+      ```
+      sudo a2enmod ratelimit
+      ```
+   2. ubah konfigurasi apache
+      ```
+      sudo nano /etc/apache2/apache2.conf
+      ```
+      sesuaikan
+      ```
+      <Directory /var/www/html>
+          SetOutputFilter RATE_LIMIT
+          SetEnv rate-limit 100
+      </Directory>
+
+      ```
+   4. restart apache
+      ```
+      sudo systemctl restart apache2
+      ```
+## 6. mencegah serangan berbasis HTTP menggunakan mod evasive
+   1. instal ivasive
+      ```
+      sudo apt install libapache2-mod-evasive -y
+      ```
+   2. komfigurasi file
+      ```
+      sudo nano /etc/apache2/mods-available/evasive.conf
+      ```
+      Sesuaikan konfigurasi
+      ```
+      <IfModule mod_evasive20.c>
+          DOSHashTableSize 3097
+          DOSPageCount 5
+          DOSSiteCount 50
+          DOSPageInterval 1
+          DOSSiteInterval 1
+          DOSBlockingPeriod 300
+          DOSEmailNotify admin@example.com
+          DOSLogDir "/var/log/mod_evasive"
+      </IfModule>
+      ```
+   3. buat direktori
+      ```
+      sudo mkdir /var/log/mod_evasive
+      sudo chmod 777 /var/log/mod_evasive
+      ```
+   4. aktifkan modul dan restart apache
+      ```
+      sudo a2enmod evasive
+      sudo systemctl restart apache2
+      ```
+## 7. Brute-force after Hardening
+
+   1. Lakukan serangan brute-force menggunakan hydra, jika server kamu berhasil untuk di Hardening, maka Hydra          tidak akan bisa menyerang server kamu.
+      ```
+      hydra -L /home/kelompok8/wordlist/userlist.txt -P /home/kelompok8/Desktop/passlist.txt 192.168.100.142 http-get /private
+      ```
+   
+
+## 8. jika pasword masih bisa diserang(opsional)
 
 1. Gunakan SSH Key Authentication (Nonaktifkan Password Login)
 Ganti autentikasi berbasis password dengan SSH Key Authentication.
@@ -173,24 +251,8 @@ Restart SSH:
 ```
 sudo systemctl restart sshd
 ```
-2. Batasi Percobaan Login dengan Fail2Ban
-Install dan konfigurasi Fail2Ban untuk memblokir IP yang gagal login berkali-kali:
-```
-sudo apt install fail2ban
-```
-Konfigurasi SSH di /etc/fail2ban/jail.local:
-```
-[sshd]
-enabled = true
-maxretry = 3
-bantime = 3600
-findtime = 600
-```
-Restart Fail2Ban:
-```
-sudo systemctl restart fail2ban
-```
-4. Ubah Port Default SSH
+
+2. Ubah Port Default SSH
 Port default SSH adalah 22, yang sering menjadi target serangan brute-force. Ubah ke port lain di /etc/ssh/sshd_config:
 ```
 Port 2222
@@ -203,7 +265,7 @@ Pastikan firewall mengizinkan port baru tersebut:
 ```
 sudo ufw allow 2222/tcp
 ```
-5. Hanya Izinkan User Tertentu untuk SSH
+3. Hanya Izinkan User Tertentu untuk SSH
 Batasi akses hanya ke user tertentu dengan menambahkan di /etc/ssh/sshd_config:
 ```
 AllowUsers kelompok8
@@ -212,7 +274,7 @@ Restart SSH:
 ```
 sudo systemctl restart sshd
 ```
-6. Gunakan Firewall untuk Memfilter Akses
+4. Gunakan Firewall untuk Memfilter Akses
 Gunakan UFW (Uncomplicated Firewall) untuk hanya mengizinkan IP tertentu:
 ```
 sudo ufw allow from 192.168.1.0/24 to any port 22
