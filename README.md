@@ -3,7 +3,7 @@ Disini, kami akan membuat Web Server lalu melakukan penyerangan Brute-Force meng
 
 Raka Tirta Wahyudi - 23.83.0991.<br>
 Zhewa al varihy mandeva - 23.83.1012.<br>
-Angga ahdi prasetya - 23.83.1033.<br>
+Angga adhi prasetya - 23.83.1033.<br>
 
 ## daftar isi
 1. Membuat Web Server
